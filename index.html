@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sobrevivência</title>
+<style>
+:root{--hud:rgba(255,255,255,.82);--tx:#1d2a1d;--bd:rgba(0,0,0,.15)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--hud:rgba(14,20,14,.78);--tx:#f4f1e6;--bd:rgba(255,255,255,.18)}}
+:root[data-theme="dark"]{--hud:rgba(14,20,14,.78);--tx:#f4f1e6;--bd:rgba(255,255,255,.18)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{height:100%;margin:0;overflow:hidden;background:#1e5a2b;font-family:system-ui,sans-serif;color:var(--tx);touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#hud{position:fixed;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 0;display:flex;flex-direction:column;gap:5px;pointer-events:none}
+.bar{display:flex;align-items:center;gap:6px;background:var(--hud);border:1px solid var(--bd);border-radius:10px;padding:3px 8px;font-size:13px;max-width:260px}
+.bar b{width:44px;font-weight:600}
+.bar i{flex:1;height:9px;border-radius:5px;background:var(--bd);overflow:hidden}
+.bar i span{display:block;height:100%;width:100%;transition:width .2s}
+#tempo{align-self:flex-start;font-size:12px;background:var(--hud);border:1px solid var(--bd);border-radius:10px;padding:3px 8px}
+#acoes{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+#acoes button{font:600 15px system-ui,sans-serif;color:var(--tx);background:var(--hud);border:1px solid var(--bd);border-radius:14px;padding:9px 14px;min-width:110px;touch-action:manipulation}
+#acoes button:active{transform:scale(.96)}
+#coletar{padding:20px 16px!important;background:#e8b53a!important;color:#222!important;font-size:17px!important}
+#dica{position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);font-size:12px;background:var(--hud);border:1px solid var(--bd);border-radius:10px;padding:6px 10px;display:none;pointer-events:none}
+@media (hover:hover) and (pointer:fine){#dica{display:block}}
+.bar.baixo{outline:2px solid #e5484d;animation:pisca 1s infinite}
+@keyframes pisca{50%{opacity:.55}}
+#msg{position:fixed;left:0;right:0;top:34%;text-align:center;font-weight:600;text-shadow:0 1px 4px #000;color:#fff;pointer-events:none;opacity:0;transition:opacity .3s}
+#craft{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--hud);border:1px solid var(--bd);border-radius:16px;padding:14px;display:none;flex-direction:column;gap:8px;width:min(86vw,320px);backdrop-filter:blur(6px)}
+#craft{max-height:82vh;overflow-y:auto}
+#craft h3{margin:0 0 4px}
+#craft button{font:600 14px system-ui,sans-serif;color:var(--tx);background:transparent;border:1px solid var(--bd);border-radius:10px;padding:10px;text-align:left}
+#craft button:disabled{opacity:.45}
+#bag{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--hud);border:1px solid var(--bd);border-radius:16px;padding:14px;display:none;flex-direction:column;gap:8px;width:min(86vw,320px);backdrop-filter:blur(6px)}
+#bag h3{margin:0 0 4px}
+.it{display:flex;align-items:center;gap:8px;font-size:14px}
+.it span{flex:1}
+.it button,#bx,#bn{font:600 13px system-ui,sans-serif;color:var(--tx);background:transparent;border:1px solid var(--bd);border-radius:10px;padding:7px 10px}
+#joy{position:fixed;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:2px solid rgba(255,255,255,.5);background:rgba(255,255,255,.12);display:none;pointer-events:none}
+#joy div{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.6)}
+#fim{position:fixed;inset:0;background:rgba(0,0,0,.7);color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:20px}
+#fim button{font:600 18px system-ui;padding:12px 24px;border-radius:12px;border:0;background:#e8b53a}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="bar"><b>Vida</b><i><span id="bv" style="background:#e5484d"></span></i></div>
+  <div class="bar"><b>Fome</b><i><span id="bf" style="background:#f0883e"></span></i></div>
+  <div class="bar"><b>Sede</b><i><span id="bs" style="background:#3b9be8"></span></i></div>
+  <div class="bar"><b>Stam.</b><i><span id="bt" style="background:#e8c53a"></span></i></div>
+  <div id="tempo"></div>
+</div>
+<div id="dica">WASD mover · Shift correr · E coletar · F comer · Q beber · J atacar · C criar · B mochila</div>
+<div id="msg"></div>
+<div id="bag"><h3 id="bagt">Mochila</h3><div id="bagl"></div><button id="bn">Novo jogo (apaga o save)</button><button id="bx">Fechar</button></div>
+<div id="craft"><h3>Criar</h3><button id="c1"></button><button id="c2"></button><button id="c3"></button><button id="c4"></button><button id="c5"></button><button id="c6"></button><button id="c7"></button><button id="c8"></button><button id="c9"></button><button id="c10"></button><button id="cx">Fechar</button></div>
+<div id="joy"><div></div></div>
+<div id="acoes">
+  <button id="beber">Beber (0)</button>
+  <button id="comer">Comer (0)</button>
+  <button id="criar">Criar</button>
+  <button id="mochila">Mochila</button>
+  <button id="correr">Correr</button>
+  <button id="atacar">Atacar</button>
+  <button id="coletar">Coletar</button>
+</div>
+<div id="fim"><h2 id="fimt"></h2><p id="fimp"></p><button id="rec">Jogar de novo</button></div>
+
+<script>
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+const W=2400,H=2400;
+let vw,vh;
+function resize(){const d=devicePixelRatio||1;vw=innerWidth;vh=innerHeight;cv.width=vw*d;cv.height=vh*d;g.setTransform(d,0,0,d,0,0)}
+addEventListener('resize',resize);resize();
+
+const rnd=(a,b)=>a+Math.random()*(b-a);
+let P,inv,arvores,arbustos,lagos,t,vivo,tempoVivo,msgT,fogueiras,machado,nc,nx,zumbis,correndo,cansado,tzum,tatk,flash,eraNoite,animais,tani,bandos,camas,tsave,cavernas,minerios,picareta,espada,avF,avS;
+
+function longe(x,y,m){return Math.hypot(x-W/2,y-H/2)>m}
+function novo(){
+  P={x:W/2,y:H/2,r:14,vida:100,fome:100,sede:100,stam:100};
+  inv={madeira:0,fruta:0,agua:0,carne:0,couro:0,carvao:0,ferro:0};fogueiras=[];machado=false;fecha();zumbis=[];correndo=false;cansado=false;tzum=3;tatk=0;flash=0;eraNoite=false;
+  arvores=[];arbustos=[];lagos=[];
+  for(let i=0;i<5;i++){let x,y;do{x=rnd(150,W-150);y=rnd(150,H-150)}while(!longe(x,y,250));lagos.push({x,y,r:rnd(55,95)})}
+  for(let i=0;i<70;i++){let x,y;do{x=rnd(60,W-60);y=rnd(60,H-60)}while(!longe(x,y,80));{const s=Math.random(),tp=s<.3?{r:11,madeira:2}:s<.8?{r:16,madeira:3}:{r:25,madeira:6};arvores.push(Object.assign({x,y,volta:0,max:tp.madeira,v:Math.random()<.5?0:1},tp))}}
+  for(let i=0;i<35;i++){let x,y;do{x=rnd(60,W-60);y=rnd(60,H-60)}while(!longe(x,y,80));arbustos.push({x,y,r:12,volta:0})}
+  t=0;vivo=true;tempoVivo=0;$('fim').style.display='none';
+  animais=[];bandos=[];camas=[];tani=8;
+  cavernas=[];minerios=[];picareta=false;espada=false;CAP=30;
+  for(let i=0;i<3;i++){let x,y;do{x=rnd(250,W-250);y=rnd(250,H-250)}while(!longe(x,y,600));cavernas.push({x,y,r:115});
+    for(let j=0;j<7;j++){const an=rnd(0,7),dd=rnd(20,85);minerios.push({x:x+Math.cos(an)*dd,y:y+Math.sin(an)*dd,r:12,tipo:j<4?'carvao':'ferro',volta:0})}}
+  cavernas.forEach(cav=>{for(let j=0;j<3;j++)spawnAranha(cav)});
+  for(let i=0;i<24;i++)spawnAn(true);aviso('Encontre água, frutas e madeira!');
+}
+function aviso(s){const m=$('msg');m.textContent=s;m.style.opacity=1;clearTimeout(msgT);msgT=setTimeout(()=>m.style.opacity=0,1600)}
+
+// Controles
+const keys={};
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=1;const k=e.key.toLowerCase();if(k===' ')e.preventDefault();if(e.repeat)return;if(k==='e'||k===' ')coletar();if(k==='f')comer();if(k==='q')beber();if(k==='j')atacar();if(k==='c')ACAO.criar();if(k==='b')ACAO.mochila();if(k==='escape')fecha()});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);
+let joy=null;const joyEl=$('joy');
+cv.addEventListener('pointerdown',e=>{if(joy||e.clientX>vw*.6)return;joy={id:e.pointerId,x0:e.clientX,y0:e.clientY,dx:0,dy:0};cv.setPointerCapture(e.pointerId);
+  joyEl.style.display='block';joyEl.style.left=e.clientX+'px';joyEl.style.top=e.clientY+'px'});
+cv.addEventListener('pointermove',e=>{if(!joy||e.pointerId!==joy.id)return;let dx=e.clientX-joy.x0,dy=e.clientY-joy.y0;const d=Math.hypot(dx,dy),m=45;if(d>m){dx*=m/d;dy*=m/d}
+  joy.dx=dx/m;joy.dy=dy/m;joyEl.firstElementChild.style.transform=`translate(${dx}px,${dy}px)`});
+const solta=e=>{if(joy&&e.pointerId===joy.id){joy=null;joyEl.style.display='none';joyEl.firstElementChild.style.transform=''}};
+cv.addEventListener('pointerup',solta);cv.addEventListener('pointercancel',solta);
+
+function alvo(){
+  let melhor=null,md=1e9;
+  const teste=(o,tipo,ok)=>{if(!ok)return;const d=Math.hypot(o.x-P.x,o.y-P.y)-o.r-P.r;if(d<22&&d<md){md=d;melhor={o,tipo}}};
+  arvores.forEach(o=>teste(o,'arvore',o.madeira>0));
+  arbustos.forEach(o=>teste(o,'arbusto',o.volta<=0));
+  lagos.forEach(o=>teste(o,'lago',true));camas.forEach(o=>teste(o,'cama',true));minerios.forEach(o=>teste(o,'minerio',o.volta<=0));
+  return melhor;
+}
+function coletar(){
+  if(!vivo)return;const a=alvo();if(!a){aviso('Nada por perto para coletar');return}
+  if(a.tipo==='cama'){dormir();return}
+  if(total()>=CAP){aviso('Mochila cheia ('+CAP+')');return}
+  if(a.tipo==='arvore'){a.o.madeira--;if(a.o.madeira<=0)a.o.volta=60;const q=add('madeira',(machado?2:1)+(a.o.r>20?1:0));aviso('+'+q+' madeira')}
+  else if(a.tipo==='arbusto'){a.o.volta=40;add('fruta',1);aviso('+1 fruta')}
+  else if(a.tipo==='minerio'){if(!picareta){aviso('Precisa de uma picareta (Criar)');return}const k=a.o.tipo,q=add(k,k==='ferro'?1:2);a.o.volta=45;aviso('+'+q+(k==='ferro'?' ferro':' carvão'))}
+  else{add('agua',1);aviso('+1 água')}
+  botoes();
+}
+function comer(){if(!vivo)return;const bu=arbustos.find(o=>o.volta<=0&&Math.hypot(o.x-P.x,o.y-P.y)-o.r-P.r<22);
+  if(bu){bu.volta=40;P.fome=Math.min(100,P.fome+20);aviso('Você comeu frutas do arbusto')}
+  else if(inv.fruta>0){inv.fruta--;P.fome=Math.min(100,P.fome+25)}
+  else if(inv.carne>0){inv.carne--;const perto=fogueiras.some(f=>Math.hypot(f.x-P.x,f.y-P.y)<110);P.fome=Math.min(100,P.fome+(perto?45:20));if(!perto)P.vida=Math.max(1,P.vida-4);aviso(perto?'Carne assada!':'Carne crua (-4 vida)')}
+  else{aviso('Sem comida');return}
+  botoes()}
+function beber(){if(!vivo)return;const lg=lagos.find(o=>Math.hypot(o.x-P.x,o.y-P.y)-o.r-P.r<22);if(lg){P.sede=Math.min(100,P.sede+35);aviso('Você bebeu do lago');botoes();return}
+  if(inv.agua<1){aviso('Sem água');return}inv.agua--;P.sede=Math.min(100,P.sede+30);botoes()}
+function botoes(){mostraM();$('beber').textContent=`Beber (${inv.agua})`;$('comer').textContent=`Comer (${inv.fruta+inv.carne})`;$('coletar').textContent=`Coletar${inv.madeira?' · 🪵'+inv.madeira:''}`}
+const abp=()=>fogueiras.find(f=>f.ab&&Math.hypot(f.x-P.x,f.y-P.y)<110);
+const pode=r=>inv.madeira>=r.c&&inv.couro>=(r.cu||0)&&inv.ferro>=(r.fe||0)&&inv.carvao>=(r.ca||0)&&!(r.tem?r.tem():r.u&&machado)&&(!r.ok||r.ok());
+const receitas=[
+{n:'Fogueira',c:4,d:'ilumina a noite e cura quem estiver perto. Dura 90s.',f(){fogueiras.push({x:P.x,y:P.y,t:90});aviso('Fogueira acesa!')}},
+{n:'Machado',c:3,d:'cada árvore rende 2 madeiras.',u:1,f(){machado=true;aviso('Machado criado!')}},
+{n:'Abrigo',c:12,cu:2,d:'+ 2 couro. Zona segura permanente: cura e afasta inimigos.',f(){fogueiras.push({x:P.x,y:P.y,t:1e12,ab:1,hp:100,max:100});aviso('Abrigo construído!')}},
+{n:'Cama',c:6,cu:2,d:'+ 2 couro. Perto dela, toque em Coletar para dormir até amanhecer (dentro de um abrigo).',f(){camas.push({x:P.x,y:P.y,r:14});aviso('Cama colocada!')}},
+{n:'Picareta',c:5,d:'permite minerar carvão e ferro nas cavernas.',tem:()=>picareta,f(){picareta=true;aviso('Picareta criada!')}},
+{n:'Espada de ferro',c:2,fe:3,ca:2,d:'+ 3 ferro + 2 carvão. Dano 3.',tem:()=>espada,f(){espada=true;aviso('Espada criada!')}},
+{n:'Reparar abrigo',c:4,d:'+50 de durabilidade. Fique dentro do abrigo.',ok:abp,f(){const b=abp();b.hp=Math.min(b.max,b.hp+50);aviso('Abrigo reparado')}},
+{n:'Reforçar abrigo',c:8,fe:2,d:'+ 2 ferro. Durabilidade máxima +100 e conserto total.',ok:abp,f(){const b=abp();b.max+=100;b.hp=b.max;aviso('Abrigo reforçado!')}},
+{n:'Mochila de couro',c:2,cu:5,d:'+ 5 couro. Capacidade 40.',tem:()=>CAP>=40,f(){CAP=40;aviso('Mochila de couro! Capacidade 40')}},
+{n:'Mochila reforçada',c:3,cu:8,fe:2,d:'+ 8 couro + 2 ferro. Capacidade 50.',ok:()=>CAP>=40,tem:()=>CAP>=50,f(){CAP=50;aviso('Mochila reforçada! Capacidade 50')}}];
+function mostra(){receitas.forEach((r,i)=>{const b=$('c'+(i+1));const tem=r.tem?r.tem():r.u&&machado;b.textContent=tem?r.n+' (já possui)':`${r.n} · ${r.c} 🪵 — ${r.d}`;b.disabled=tem||!pode(r)})}
+function fazer(i){const r=receitas[i];if(!pode(r))return;inv.madeira-=r.c;inv.couro-=(r.cu||0);inv.ferro-=(r.fe||0);inv.carvao-=(r.ca||0);r.f();botoes();mostra()}
+function fecha(){$('craft').style.display='none';$('bag').style.display='none'}
+$('criar').onclick=()=>{if(vivo){$('craft').style.display='flex';mostra()}};
+$('cx').onclick=fecha;$('c1').onclick=()=>fazer(0);$('c2').onclick=()=>fazer(1);$('c3').onclick=()=>fazer(2);$('c4').onclick=()=>fazer(3);$('c5').onclick=()=>fazer(4);$('c6').onclick=()=>fazer(5);$('c7').onclick=()=>fazer(6);$('c8').onclick=()=>fazer(7);$('c9').onclick=()=>fazer(8);$('c10').onclick=()=>fazer(9);
+$('coletar').onclick=coletar;
+let CAP=30;const DIA=300,NI=.52,SK='sobrev_v1';
+function salvar(){if(!vivo)return;try{localStorage.setItem(SK,JSON.stringify({P,inv,t,arvores,arbustos,lagos,fogueiras,camas,machado,picareta,espada,cavernas,minerios,tempoVivo,CAP}))}catch(e){}}
+function carregar(){try{const s=localStorage.getItem(SK);if(!s)return false;const d=JSON.parse(s);
+  P=d.P;inv=Object.assign({madeira:0,fruta:0,agua:0,carne:0,couro:0,carvao:0,ferro:0},d.inv);t=d.t;arvores=d.arvores;arbustos=d.arbustos;lagos=d.lagos;fogueiras=d.fogueiras;camas=d.camas||[];CAP=d.CAP||30;machado=d.machado;picareta=d.picareta;espada=d.espada;cavernas=d.cavernas||[];minerios=d.minerios||[];tempoVivo=d.tempoVivo||0;
+  zumbis=[];animais=[];bandos=[];tani=8;for(let i=0;i<24;i++)spawnAn(true);
+  vivo=true;eraNoite=((t%DIA)/DIA)>NI;correndo=false;cansado=false;tzum=3;tatk=0;flash=0;fecha();$('fim').style.display='none';aviso('Progresso carregado');return true}catch(e){return false}}
+addEventListener('visibilitychange',()=>{if(document.hidden)salvar()});addEventListener('pagehide',salvar);
+let confN=0;$('bn').onclick=()=>{const b=$('bn');if(!confN){confN=1;b.textContent='Toque de novo para confirmar';setTimeout(()=>{confN=0;b.textContent='Novo jogo (apaga o save)'},3000)}else{confN=0;b.textContent='Novo jogo (apaga o save)';try{localStorage.removeItem(SK)}catch(e){}novo();botoes()}};
+function dormir(){
+  if(((t%DIA)/DIA)<=NI){aviso('Só dá para dormir à noite');return}
+  if(!fogueiras.some(f=>f.ab&&Math.hypot(f.x-P.x,f.y-P.y)<110)){aviso('Coloque a cama dentro de um abrigo');return}
+  t+=DIA-(t%DIA);zumbis=[];P.vida=Math.min(100,P.vida+30);P.fome=Math.max(10,P.fome-20);P.sede=Math.max(10,P.sede-25);P.stam=100;salvar();
+}
+const total=()=>inv.madeira+inv.fruta+inv.agua+inv.carne+inv.couro+inv.carvao+inv.ferro;
+function add(k,n){const livre=CAP-total();if(livre<=0){aviso('Mochila cheia ('+CAP+')');return 0}const q=Math.min(n,livre);inv[k]+=q;return q}
+function soltar(k,n){inv[k]=Math.max(0,inv[k]-n);botoes()}
+function mostraM(){
+  const nomes={carvao:'⚫ Carvão',ferro:'🔩 Ferro',madeira:'🪵 Madeira',fruta:'🍎 Fruta',agua:'💧 Água',carne:'🥩 Carne',couro:'🧶 Couro'};
+  const tx='Mochila '+total()+'/'+CAP;$('mochila').textContent=tx;$('bagt').textContent=tx;
+  const L=$('bagl');L.innerHTML='';
+  Object.keys(nomes).forEach(k=>{const r=document.createElement('div');r.className='it';const s=document.createElement('span');s.textContent=nomes[k]+': '+inv[k];
+    const b1=document.createElement('button');b1.textContent='-1';b1.onclick=()=>soltar(k,1);
+    const b2=document.createElement('button');b2.textContent='Tudo';b2.onclick=()=>soltar(k,inv[k]);
+    r.append(s,b1,b2);L.append(r)});
+}
+$('mochila').onclick=()=>{if(vivo){fecha();$('bag').style.display='flex';mostraM()}};
+$('bx').onclick=()=>{$('bag').style.display='none'};
+const TIPOS={
+  vaca:{em:'🐄',r:16,hp:3,vel:40,hostil:0,dano:0,carne:2,couro:1},
+  cervo:{em:'🦌',r:14,hp:2,vel:140,hostil:0,dano:0,foge:1,carne:2,couro:1},
+  javali:{em:'🐗',r:15,hp:4,vel:125,hostil:0,dano:15,revida:1,carne:3,couro:1},
+  urso:{em:'🐻',r:22,hp:10,vel:90,hostil:1,dano:25,aggro:260,carne:5,couro:2},
+  lobo:{em:'🐺',r:13,hp:4,vel:170,hostil:1,dano:12,aggro:320,carne:2,couro:1},
+  aranha:{em:'🕷️',r:10,hp:3,vel:115,hostil:1,dano:9,aggro:200,carne:1,couro:0},
+  cobra:{em:'🐍',r:9,hp:2,vel:90,hostil:1,dano:7,aggro:150,carne:1,couro:0}};
+function spawnAranha(cav){const an=rnd(0,7),dd=rnd(20,90);animais.push(Object.assign({k:'aranha',x:cav.x+Math.cos(an)*dd,y:cav.y+Math.sin(an)*dd,flash:0,ang:0,tw:0,furia:0,par:0,max:3,casa:cav},TIPOS.aranha))}
+const ESP=['vaca','vaca','cervo','cervo','javali','javali','urso','lobo','cobra','cobra'];
+function spawnAn(ini){for(let i=0;i<20;i++){const k=ESP[Math.floor(Math.random()*ESP.length)],x=rnd(60,W-60),y=rnd(60,H-60);
+  if(Math.hypot(x-P.x,y-P.y)<(ini?520:450))continue;
+  if(k==='lobo'&&Math.random()<.15){const b={x,y,tx:x,ty:y,tw:0,al:0};bandos.push(b);const n=3+Math.floor(Math.random()*3);
+    for(let j=0;j<n;j++)animais.push(Object.assign({k,x:x+rnd(-40,40),y:y+rnd(-40,40),flash:0,ang:0,tw:0,furia:0,par:0,max:TIPOS[k].hp,bd:b,ox:rnd(-45,45),oy:rnd(-45,45)},TIPOS[k]))}
+  else animais.push(Object.assign({k,x,y,flash:0,ang:0,tw:0,furia:0,par:0,max:TIPOS[k].hp},TIPOS[k]));return}}
+const bc=$('correr');bc.addEventListener('pointerdown',e=>{correndo=true;bc.setPointerCapture(e.pointerId)});
+['pointerup','pointercancel'].forEach(ev=>bc.addEventListener(ev,()=>{correndo=false}));
+bc.addEventListener('contextmenu',e=>e.preventDefault());
+$('atacar').onclick=atacar;
+function atacar(){
+  if(!vivo||tatk>0||P.stam<10)return;
+  tatk=.4;flash=.15;P.stam-=10;
+  animais.forEach(a=>{const d=Math.hypot(a.x-P.x,a.y-P.y)||1;
+    if(d<a.r+P.r+34){a.hp-=espada?3:machado?2:1;a.flash=.15;a.furia=8;a.x+=(a.x-P.x)/d*20;a.y+=(a.y-P.y)/d*20;
+      if(a.hp<=0){const c1=add('carne',a.carne),c2=a.couro?add('couro',a.couro):0;if(c1||c2)aviso('+'+c1+' carne'+(c2?' +'+c2+' couro':''));botoes()}}});
+  animais=animais.filter(a=>a.hp>0);
+  zumbis.forEach(z=>{const d=Math.hypot(z.x-P.x,z.y-P.y)||1;
+    if(d<z.r+P.r+34){z.hp-=espada?3:machado?2:1;z.flash=.15;z.x+=(z.x-P.x)/d*30;z.y+=(z.y-P.y)/d*30}});
+}$('comer').onclick=comer;$('beber').onclick=beber;$('rec').onclick=()=>{novo();botoes()};
+
+function empurra(o){const dx=P.x-o.x,dy=P.y-o.y,d=Math.hypot(dx,dy)||1,min=o.r+P.r;if(d<min){P.x=o.x+dx/d*min;P.y=o.y+dy/d*min}}
+
+function atualiza(dt){
+  if(!vivo)return;
+  t+=dt;tempoVivo+=dt;
+  let ix=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),iy=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
+  if(joy){ix+=joy.dx;iy+=joy.dy}
+  const m=Math.hypot(ix,iy);if(m>1){ix/=m;iy/=m}
+  const mov=Math.hypot(ix,iy)>.1;
+  const quer=(correndo||keys.shift)&&mov&&!cansado&&P.stam>0;
+  if(quer){P.stam=Math.max(0,P.stam-28*dt);if(P.stam<=0){cansado=true;aviso('Sem fôlego!')}}
+  else{P.stam=Math.min(100,P.stam+(mov?14:24)*dt);if(cansado&&P.stam>=25)cansado=false}
+  const v=quer?270:160;
+  P.x=Math.max(P.r,Math.min(W-P.r,P.x+ix*v*dt));P.y=Math.max(P.r,Math.min(H-P.r,P.y+iy*v*dt));
+  arvores.forEach(o=>{if(o.madeira>0)empurra(o);else if((o.volta-=dt)<=0)o.madeira=o.max||3});
+  arbustos.forEach(o=>{if(o.volta>0)o.volta-=dt});
+  lagos.forEach(empurra);
+  fogueiras.forEach(f=>f.t-=dt);fogueiras.forEach(f=>{if(f.ab&&f.hp===undefined){f.hp=100;f.max=100}if(f.ab&&f.hp<=0)aviso('Um abrigo desabou!')});
+  fogueiras=fogueiras.filter(f=>f.t>0&&!(f.ab&&f.hp<=0));
+  if(fogueiras.some(f=>Math.hypot(f.x-P.x,f.y-P.y)<110))P.vida=Math.min(100,P.vida+2*dt);
+  const noite=((t%DIA)/DIA)>NI;
+  if(noite!==eraNoite){eraNoite=noite;aviso(noite?'Anoiteceu... cuidado com os zumbis!':'Amanheceu! Os zumbis queimam ao sol.')}
+  tatk=Math.max(0,tatk-dt);flash=Math.max(0,flash-dt);tzum-=dt;
+  if(noite&&tzum<=0&&zumbis.length<6+Math.floor(t/DIA)*2){
+    tzum=rnd(2,4);const an=rnd(0,7),dd=rnd(380,520),sx=P.x+Math.cos(an)*dd,sy=P.y+Math.sin(an)*dd;
+    if(sx>30&&sx<W-30&&sy>30&&sy<H-30)zumbis.push({x:sx,y:sy,r:14,hp:3,flash:0,vel:rnd(75,115)});
+  }
+  const pz=(z,o)=>{const ex=z.x-o.x,ey=z.y-o.y,ed=Math.hypot(ex,ey)||1,mm=o.r+z.r;if(ed<mm){z.x=o.x+ex/ed*mm;z.y=o.y+ey/ed*mm}};
+  zumbis.forEach(z=>{
+    z.flash=Math.max(0,z.flash-dt);
+    if(!noite)z.hp-=1.2*dt;
+    const dx=P.x-z.x,dy=P.y-z.y,d=Math.hypot(dx,dy)||1;
+    let vx=dx/d,vy=dy/d;
+    fogueiras.forEach(f=>{const fx=z.x-f.x,fy=z.y-f.y,fd=Math.hypot(fx,fy)||1;if(fd<135){if(f.ab&&f.hp>0&&(z.ab===undefined?(z.ab=rnd(5,9)):z.ab)>0){vx=vy=0;f.hp-=5*dt;z.ab-=dt}else{vx=fx/fd*1.5;vy=fy/fd*1.5}}});
+    z.x+=vx*z.vel*dt;z.y+=vy*z.vel*dt;
+    arvores.forEach(o=>{if(o.madeira>0)pz(z,o)});lagos.forEach(o=>pz(z,o));
+    if(d<z.r+P.r+4)P.vida-=14*dt;
+  });
+  zumbis=zumbis.filter(z=>z.hp>0);
+  tani-=dt;if(tani<=0){tani=8;if(animais.length<34)spawnAn(false);if(cavernas.length&&animais.filter(a=>a.k==='aranha').length<cavernas.length*3)spawnAranha(cavernas[Math.floor(Math.random()*cavernas.length)])}
+  minerios.forEach(o=>{if(o.volta>0)o.volta-=dt});
+  tsave=(tsave||5)-dt;if(tsave<=0){tsave=5;salvar()}
+  animais=animais.filter(a=>a.hp>0);
+  bandos=bandos.filter(b=>animais.some(a=>a.bd===b));
+  const lobos=animais.filter(a=>a.k==='lobo');
+  lobos.forEach(a=>{if(a.bd)return;const o=lobos.find(q=>q!==a&&Math.hypot(q.x-a.x,q.y-a.y)<110);if(!o)return;
+    if(!o.bd){o.bd={x:o.x,y:o.y,tx:o.x,ty:o.y,tw:0,al:0};bandos.push(o.bd);o.ox=rnd(-45,45);o.oy=rnd(-45,45)}
+    a.bd=o.bd;a.ox=rnd(-45,45);a.oy=rnd(-45,45)});
+  bandos.forEach(b=>{const m=animais.filter(a=>a.bd===b);b.x=m.reduce((s,a)=>s+a.x,0)/m.length;b.y=m.reduce((s,a)=>s+a.y,0)/m.length;b.al=Math.max(0,b.al-dt);b.tw-=dt;
+    if(b.tw<=0){b.tw=rnd(8,14);b.tx=Math.max(80,Math.min(W-80,b.x+rnd(-450,450)));b.ty=Math.max(80,Math.min(H-80,b.y+rnd(-450,450)))}});
+  animais.forEach(a=>{
+    a.flash=Math.max(0,a.flash-dt);a.furia=Math.max(0,a.furia-dt);
+    const dx=P.x-a.x,dy=P.y-a.y,d=Math.hypot(dx,dy)||1;
+    const ataca=a.hostil||(a.revida&&a.furia>0);
+    let vx=0,vy=0,s=a.vel*.45;
+    let presa=null,pd=260;if(a.hostil)animais.forEach(q=>{if(!q.hostil){const e=Math.hypot(q.x-a.x,q.y-a.y);if(e<pd){pd=e;presa=q}}});
+    const alerta=a.bd&&a.bd.al>0;
+    const ag=a.k==='lobo'&&!noite&&a.furia<=0&&!alerta?70:a.aggro*(alerta?1.3:1);
+    if(ataca&&(!a.hostil||d<ag)){vx=dx/d;vy=dy/d;s=a.vel;if(a.bd)a.bd.al=4}
+    else if(presa){const px=presa.x-a.x,py=presa.y-a.y,pe=Math.hypot(px,py)||1;vx=px/pe;vy=py/pe;s=a.vel*.9;if(pe<a.r+presa.r+4){presa.hp-=a.dano*.5*dt;presa.flash=.1;presa.furia=4}}
+    else if((a.foge&&d<230)||(a.furia>0&&!a.revida)){vx=-dx/d;vy=-dy/d;s=a.vel}
+    else if(a.casa&&Math.hypot(a.casa.x-a.x,a.casa.y-a.y)>110){const hx=a.casa.x-a.x,hy=a.casa.y-a.y,he=Math.hypot(hx,hy)||1;vx=hx/he;vy=hy/he}
+    else if(a.bd){const tx=a.bd.tx+a.ox-a.x,ty=a.bd.ty+a.oy-a.y,td=Math.hypot(tx,ty)||1;vx=tx/td;vy=ty/td}
+    else{a.tw-=dt;if(a.tw<=0){a.tw=rnd(1,3);a.ang=rnd(0,7);a.par=Math.random()<.4}if(!a.par){vx=Math.cos(a.ang);vy=Math.sin(a.ang)}}
+    fogueiras.forEach(f=>{const fx=a.x-f.x,fy=a.y-f.y,fd=Math.hypot(fx,fy)||1;if(fd<135){if(f.ab&&a.hostil&&f.hp>0&&(a.ab===undefined?(a.ab=rnd(5,9)):a.ab)>0){vx=vy=0;f.hp-=a.dano*.4*dt;a.ab-=dt}else{vx=fx/fd*1.5;vy=fy/fd*1.5;s=a.vel}}});
+    a.x=Math.max(20,Math.min(W-20,a.x+vx*s*dt));a.y=Math.max(20,Math.min(H-20,a.y+vy*s*dt));
+    arvores.forEach(o=>{if(o.madeira>0)pz(a,o)});lagos.forEach(o=>pz(a,o));
+    if(ataca&&d<a.r+P.r+4)P.vida-=a.dano*dt;
+  });
+  P.fome=Math.max(0,P.fome-.6*dt);P.sede=Math.max(0,P.sede-.9*dt);
+  if(P.fome<=0||P.sede<=0)P.vida-=3*dt;else if(P.fome>50&&P.sede>50)P.vida=Math.min(100,P.vida+1*dt);
+  if(P.vida<=0){P.vida=0;vivo=false;try{localStorage.removeItem(SK)}catch(e){}$('fimt').textContent='Você morreu';$('fimp').textContent=`Sobreviveu por ${Math.floor(tempoVivo)} segundos`;$('fim').style.display='flex'}
+  $('bv').style.width=P.vida+'%';$('bf').style.width=P.fome+'%';$('bs').style.width=P.sede+'%';$('bt').style.width=P.stam+'%';
+  $('bv').closest('.bar').classList.toggle('baixo',P.vida<30);$('bf').closest('.bar').classList.toggle('baixo',P.fome<25);$('bs').closest('.bar').classList.toggle('baixo',P.sede<25);
+  if(P.fome<25){if(!avF){avF=1;aviso('Você está com fome! Coma algo')}}else if(P.fome>35)avF=0;
+  if(P.sede<25){if(!avS){avS=1;aviso('Você está com sede! Beba água')}}else if(P.sede>35)avS=0;
+  const ciclo=(t%DIA)/DIA;$('tempo').textContent=(ciclo<NI?'☀️ Dia ':'🌙 Noite ')+(Math.floor(t/DIA)+1);
+}
+
+function desenha(){
+  const cx=Math.max(0,Math.min(W-vw,P.x-vw/2)),cy=Math.max(0,Math.min(H-vh,P.y-vh/2));
+  g.fillStyle='#2e7d3a';g.fillRect(0,0,vw,vh);
+  g.save();g.translate(-cx,-cy);
+  g.fillStyle='rgba(0,0,0,.06)';for(let x=0;x<W;x+=100)for(let y=0;y<H;y+=100)if(x>cx-100&&x<cx+vw&&y>cy-100&&y<cy+vh)g.fillRect(x,y,4,4);
+  g.strokeStyle='#143d1b';g.lineWidth=6;g.strokeRect(0,0,W,H);
+  const vis=o=>o.x>cx-120&&o.x<cx+vw+120&&o.y>cy-120&&o.y<cy+vh+120;
+  const c=(x,y,r,f)=>{g.fillStyle=f;g.beginPath();g.arc(x,y,r,0,7);g.fill()};
+  cavernas.filter(vis).forEach(o=>{c(o.x,o.y,o.r+8,'#5b5b5b');c(o.x,o.y,o.r,'#1c1c20')});
+  minerios.filter(vis).forEach(o=>{c(o.x,o.y,o.r,o.volta>0?'#444':(o.tipo==='ferro'?'#c9783a':'#0a0a0a'));c(o.x-3,o.y-3,3,'rgba(255,255,255,.35)')});
+  lagos.filter(vis).forEach(o=>{c(o.x,o.y,o.r+5,'#e0d29a');c(o.x,o.y,o.r,'#3b9be8')});
+  arbustos.filter(vis).forEach(o=>{c(o.x,o.y,o.r,'#1f6a2c');if(o.volta<=0){c(o.x-4,o.y-3,3,'#e5484d');c(o.x+4,o.y+2,3,'#e5484d');c(o.x,o.y+5,3,'#e5484d')}});
+  arvores.filter(vis).forEach(o=>{if(o.madeira>0){c(o.x,o.y,o.r+8,'#14502000');c(o.x,o.y,o.r+10,o.v?'#195c24':'#2d7d2b');c(o.x-o.r*.3,o.y-o.r*.3,o.r*.5,'rgba(255,255,255,.08)');c(o.x,o.y,o.r-4,'#6b4423')}else c(o.x,o.y,o.r*.45,'#6b4423')});
+  camas.filter(vis).forEach(o=>{g.fillStyle='#b8423a';g.fillRect(o.x-14,o.y-10,28,20);g.fillStyle='#f4f1e6';g.fillRect(o.x-14,o.y-10,9,20)});
+  fogueiras.filter(vis).forEach(f=>{if(f.ab){c(f.x,f.y,38,'#7a532b');c(f.x,f.y,30,'#a8793f');g.fillStyle='#4a2f16';g.fillRect(f.x-8,f.y+12,16,26);if(f.max){g.fillStyle='#000';g.fillRect(f.x-22,f.y-48,44,6);g.fillStyle=f.hp/f.max>.4?'#6fd35f':'#e5484d';g.fillRect(f.x-22,f.y-48,44*Math.max(0,f.hp/f.max),6)}return}c(f.x,f.y,13,'#5a3a1c');c(f.x,f.y-2,9+Math.sin(t*12)*1.5,'#ff9a2e');c(f.x,f.y-3,4,'#ffe066')});
+  animais.filter(vis).forEach(a=>{
+    c(a.x,a.y+3,a.r,'rgba(0,0,0,.25)');
+    if(a.flash>0)c(a.x,a.y,a.r+3,'#fff');else if(a.hostil){g.strokeStyle='rgba(229,72,77,.85)';g.lineWidth=2;g.beginPath();g.arc(a.x,a.y,a.r+3,0,7);g.stroke()}
+    g.font=(a.r*2)+'px serif';g.textAlign='center';g.textBaseline='middle';g.fillText(a.em,a.x,a.y+1);
+    if(a.hp<a.max){g.fillStyle='#000';g.fillRect(a.x-12,a.y-a.r-9,24,4);g.fillStyle=a.hostil?'#e5484d':'#6fd35f';g.fillRect(a.x-12,a.y-a.r-9,24*Math.max(0,a.hp)/a.max,4)}
+  });
+  zumbis.filter(vis).forEach(z=>{
+    c(z.x,z.y+3,z.r,'rgba(0,0,0,.25)');c(z.x,z.y,z.r,z.flash>0?'#fff':'#5f8f4a');c(z.x,z.y,z.r-5,z.flash>0?'#ddd':'#486e38');
+    const an=Math.atan2(P.y-z.y,P.x-z.x),ox=Math.cos(an)*6,oy=Math.sin(an)*6;
+    c(z.x+ox-3,z.y+oy,2.5,'#d22');c(z.x+ox+3,z.y+oy,2.5,'#d22');
+    if(z.hp<3){g.fillStyle='#000';g.fillRect(z.x-12,z.y-z.r-8,24,4);g.fillStyle='#e5484d';g.fillRect(z.x-12,z.y-z.r-8,24*Math.max(0,z.hp)/3,4)}
+  });
+  if(flash>0){g.strokeStyle='rgba(255,255,255,.7)';g.lineWidth=3;g.beginPath();g.arc(P.x,P.y,P.r+30,0,7);g.stroke()}
+  const a=alvo();if(a){g.strokeStyle='#ffe066';g.lineWidth=3;g.beginPath();g.arc(a.o.x,a.o.y,a.o.r+(a.tipo==='arvore'?12:6),0,7);g.stroke()}
+  c(P.x,P.y+3,P.r,'rgba(0,0,0,.25)');c(P.x,P.y,P.r,'#f1d9a8');c(P.x,P.y,P.r-6,'#d4a85a');
+  g.restore();
+  const ciclo=(t%120)/120;
+  const noite=Math.max(0,Math.sin(ciclo*Math.PI*2-Math.PI*.5)*-1);
+  const cd=(t%DIA)/DIA;const al=cd>NI?Math.min(.6,Math.sin((cd-NI)/(1-NI)*Math.PI)*1.3):0;
+  if(al>0){if(!nc){nc=document.createElement('canvas');nx=nc.getContext('2d')}
+    nc.width=vw;nc.height=vh;nx.fillStyle=`rgba(5,10,35,${al})`;nx.fillRect(0,0,vw,vh);nx.globalCompositeOperation='destination-out';
+    fogueiras.forEach(f=>{const x=f.x-cx,y=f.y-cy,gr=nx.createRadialGradient(x,y,10,x,y,150);gr.addColorStop(0,'rgba(0,0,0,1)');gr.addColorStop(1,'rgba(0,0,0,0)');nx.fillStyle=gr;nx.fillRect(x-150,y-150,300,300)});
+    g.drawImage(nc,0,0,vw,vh)}
+}
+
+let ult=performance.now();
+function loop(n){const dt=Math.min(.05,(n-ult)/1000);ult=n;atualiza(dt);desenha();requestAnimationFrame(loop)}
+const ACAO={};['coletar','comer','beber','atacar','criar','mochila'].forEach(id=>{const el=$(id),fn=el.onclick;ACAO[id]=fn;el.onclick=null;el.addEventListener('pointerdown',e=>{e.preventDefault();window.focus();fn()})});
+addEventListener('pointerdown',()=>window.focus());
+if(!carregar())novo();botoes();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
